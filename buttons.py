@@ -1,8 +1,10 @@
 from PySide6.QtWidgets import QPushButton, QGridLayout
 from variables import MEDIUM_FONT_SIZE
 from utils import isNumOrDot, isEmpty,isValidNumber
+from mainwindow import MainWindow
 from display import Display
 from PySide6.QtCore import Slot
+import math
 
 from typing import TYPE_CHECKING
 
@@ -23,7 +25,7 @@ class Button(QPushButton):
         self.setMinimumSize(75, 75)
 
 class ButtonsGrid(QGridLayout):
-    def __init__(self, display: 'Display', info:'Info', *args, **kwargs) -> None:
+    def __init__(self, display: 'Display', info:'Info', window: 'MainWindow', *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self._gridMask = [
@@ -35,6 +37,7 @@ class ButtonsGrid(QGridLayout):
         ]
         self.display = display
         self.info = info
+        self.window = window
         self._equation = ''
         self._equationInitialValue = 'Sua conta'
         self._left = None
@@ -83,8 +86,11 @@ class ButtonsGrid(QGridLayout):
 
         if text == 'AC':
            self._connectButtonCLicked(button, self._clear)
+
+        if text == '◀':
+           self._connectButtonCLicked(button, self.display.backspace)
         
-        if text in '+-/*':
+        if text in '+-/*^':
             self._connectButtonCLicked(
                button,
                  self._makeSlot(self._operatorClicked, button)
@@ -119,7 +125,7 @@ class ButtonsGrid(QGridLayout):
         self.display.clear()
 
         if not isValidNumber(displayText) and self._left is None:
-            print('Nao tem nada pra colocar no valor da esquerda.')
+            self._showError('Você não digitou nada!')
             return
         if self._left is None:
             self._left = float(displayText)
@@ -131,23 +137,78 @@ class ButtonsGrid(QGridLayout):
         displayText = self.display.text()
 
         if not isValidNumber(displayText):
-            print('Sem nada para a direita')
+            self._showError('Conta incompleta.')
             return
 
         self._right = float(displayText)
         self.equation = f'{self._left} {self._op} {self._right}'
-        result = 0.0
+        result = 'error'
 
         try:
-            result = eval(self.equation)
-            print(result)
+            if '^' in self.equation and isinstance(self._left, float):
+                result = math.pow(self._left, self._right)
+            else:
+                result = eval(self.equation)
             self.display.setText(str(result))
         except ZeroDivisionError:
-            print('Zero division error')
+            self._showError('Divisão por zero!')
+        except OverflowError:
+            self._showError('Essa conta não pode ser realizada.')
 
         self.display.clear()
         self.info.setText(f'{self.equation} = {result}')
         self._left = result
+        self._right = None
 
+        if result == 'error':
+            self._left = None
+    
+    def _makeDialog(self, text):
+        msgBox = self.window.makeMsgBox()
+        msgBox.setText(text)
+        return msgBox
+
+    def _showError(self, text):
+        msgBox = self._makeDialog(text)
+        msgBox.setText(text)
+        msgBox.setIcon(msgBox.Icon.Critical)
+#         msgBox.setInformativeText('''
+#          O Lorem Ipsum é um texto modelo da indústria tipográfica e de impressão. 
+#             O Lorem Ipsum tem vindo a ser o texto padrão usado 
+#             por estas indústrias desde o ano de 1500, quando 
+#             uma misturou os caracteres de um texto para criar 
+#             um espécime de livro. Este texto não só sobreviveu 5 séculos, 
+#             mas também o salto para a tipografia electrónica, 
+#             mantendo-se essencialmente inalterada. Foi popularizada 
+#             nos anos 60 com a disponibilização das folhas de Letraset, 
+#             que continham passagens com Lorem Ipsum, e mais recentemente
+#             com os programas de publicação como o Aldus PageMaker que
+#             incluem versões do Lorem Ipsum.   
+# ''')
+
+        # msgBox.setStandardButtons(
+        #      msgBox.StandardButton.Ok|
+        #     msgBox.StandardButton.Save|
+        #     msgBox.StandardButton.Cancel 
+        # )
+
+        msgBox.exec()
+
+        # msgBox.button(msgBox.StandardButton.Ok).setText('Fechar')
+        # result = msgBox.exec()
+
+        # if result == msgBox.StandardButton.Ok:
+        #     print('usuario clicou em ok')
+        # if result == msgBox.StandardButton.Save:
+        #     print('usuario clicou em Save')
+        # if result == msgBox.StandardButton.Cancel:
+        #     print('usuario clicou em Cancel')
+
+    def _showInfo(self, text):
+        msgBox = self._makeDialog(text)
+        msgBox.setText(text)
+        msgBox.setIcon(msgBox.Icon.Information)
+        msgBox.exec()
+        
 
     
